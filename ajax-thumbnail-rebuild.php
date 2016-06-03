@@ -182,7 +182,17 @@ class AjaxThumbnailRebuild {
 					<input type="checkbox" name="thumbnails[]" id="sizeselect" checked="checked" value="<?php echo $s['name'] ?>" />
 					<em><?php echo $s['name'] ?></em>
 					&nbsp;(<?php echo $s['width'] ?>x<?php echo $s['height'] ?>
-					<?php if ($s['crop']) _e('cropped', 'ajax-thumbnail-rebuild'); ?>)
+					
+					<?php
+ 						if ($s['crop']){
+ 							if (!is_array($s['crop'])){
+ 								_e('cropped', 'ajax-thumbnail-rebuild');
+ 							}
+ 							else{
+ 								echo $s['crop'][0] . ', ' . $s['crop'][1];
+ 							}
+ 						}
+ 					?>)
 				</label>
 				<br/>
 			<?php endforeach;?>
@@ -228,7 +238,7 @@ function ajax_thumbnail_rebuild_ajax() {
 		if ($onlyfeatured) {
 			/* Get all featured images */
 			$featured_images = $wpdb->get_results( "SELECT meta_value,{$wpdb->posts}.post_title AS title FROM {$wpdb->postmeta}, {$wpdb->posts}
-		                                        WHERE meta_key = '_thumbnail_id' AND {$wpdb->postmeta}.post_id={$wpdb->posts}.ID ORDER BY post_date DESC");
+		                                        WHERE meta_key = '_thumbnail_id' AND {$wpdb->postmeta}.post_id={$wpdb->posts}.ID");
 
 			foreach($featured_images as $image) {
 			    $res[] = array('id' => $image->meta_value, 'title' => $image->title);
@@ -241,8 +251,6 @@ function ajax_thumbnail_rebuild_ajax() {
 				'post_status' => null,
 				'post_parent' => null, // any parent
 				'output' => 'object',
-				'orderby' => 'post_date',
-				'order' => 'desc'
 			) );
 			foreach ( $attachments as $attachment ) {
 			    $res[] = array('id' => $attachment->ID, 'title' => $attachment->post_title);
@@ -288,13 +296,19 @@ function ajax_thumbnail_rebuild_get_sizes() {
 		else
 			$sizes[$s]['height'] = get_option( "{$s}_size_h" );
 
-		if ( isset( $_wp_additional_image_sizes[$s]['crop'] ) )
-			$sizes[$s]['crop'] = intval( $_wp_additional_image_sizes[$s]['crop'] );
-		else
+		if ( isset( $_wp_additional_image_sizes[$s]['crop'] ) ){
+			if( !is_array( $_wp_additional_image_sizes[$s]['crop']) ){
+				$sizes[$s]['crop'] = intval( $_wp_additional_image_sizes[$s]['crop'] );
+			}
+			else{
+				$sizes[$s]['crop'] = $_wp_additional_image_sizes[$s]['crop'];
+			}
+		}
+		else{
 			$sizes[$s]['crop'] = get_option( "{$s}_crop" );
+		}		
 	}
-	
-	$sizes = apply_filters( 'intermediate_image_sizes_advanced', $sizes );
+
 	return $sizes;
 }
 
@@ -322,6 +336,7 @@ function wp_generate_attachment_metadata_custom( $attachment_id, $file, $thumbna
 		$metadata['file'] = _wp_relative_upload_path($file);
 
 		$sizes = ajax_thumbnail_rebuild_get_sizes();
+		$sizes = apply_filters( 'intermediate_image_sizes_advanced', $sizes );
 
 		foreach ($sizes as $size => $size_data ) {
 			if( isset( $thumbnails ) && !in_array( $size, $thumbnails ))
